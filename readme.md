@@ -214,3 +214,141 @@ apt update
 ```
 
 no deben aparecer errores `401 Unauthorized` ni avisos sobre repositorios Enterprise.
+
+
+Aquí tienes una **receta completa** para configurar un almacenamiento **ZFS RAIDZ1** en Proxmox con **1 SSD de 500 GB para el sistema** y **3 HDD de 4 TB para datos**.
+
+```bash
+###############################################################################
+# 1. Identificar los discos
+###############################################################################
+
+lsblk -o NAME,SIZE,MODEL
+
+ls -l /dev/disk/by-id/
+
+###############################################################################
+# 2. Borrar firmas anteriores (¡¡¡ELIMINA TODOS LOS DATOS!!)
+###############################################################################
+
+wipefs -a /dev/sdb
+wipefs -a /dev/sdc
+wipefs -a /dev/sdd
+
+sgdisk --zap-all /dev/sdb
+sgdisk --zap-all /dev/sdc
+sgdisk --zap-all /dev/sdd
+
+###############################################################################
+# 3. Crear el pool ZFS RAIDZ1
+###############################################################################
+
+zpool create -f \
+    -o ashift=12 \
+    datos \
+    raidz1 \
+    /dev/disk/by-id/ata-ST4000NT001-3M2101_WX1232Q5 \
+    /dev/disk/by-id/ata-ST4000NT001-3M2101_WX1232P2 \
+    /dev/disk/by-id/ata-ST4000NT001-3M2101_WX1232V0
+
+###############################################################################
+# 4. Comprobar el estado del pool
+###############################################################################
+
+zpool status
+
+zpool list
+
+zfs list
+
+###############################################################################
+# 5. Crear datasets
+###############################################################################
+
+zfs create datos/vmdata
+zfs create datos/backup
+zfs create datos/iso
+zfs create datos/templates
+
+###############################################################################
+# 6. Optimizar el dataset para máquinas virtuales
+###############################################################################
+
+zfs set compression=lz4 datos/vmdata
+zfs set atime=off datos/vmdata
+zfs set xattr=sa datos/vmdata
+zfs set acltype=posixacl datos/vmdata
+zfs set dnodesize=auto datos/vmdata
+zfs set recordsize=16K datos/vmdata
+
+###############################################################################
+# 7. Optimizar datasets de backup e ISOs
+###############################################################################
+
+zfs set compression=lz4 datos/backup
+zfs set compression=lz4 datos/iso
+zfs set compression=lz4 datos/templates
+
+###############################################################################
+# 8. Añadir el almacenamiento a Proxmox
+###############################################################################
+
+pvesm add zfspool vmdata \
+    --pool datos/vmdata \
+    --content images,rootdir
+
+###############################################################################
+# 9. Verificar
+###############################################################################
+
+pvesm status
+
+zfs list
+
+zpool status
+```
+
+## Resultado esperado
+
+```
+datos
+├── vmdata
+│   ├── Máquinas virtuales
+│   └── Contenedores LXC
+├── backup
+│   └── Copias de seguridad
+├── iso
+│   └── Imágenes ISO
+└── templates
+    └── Plantillas de contenedores
+```
+
+## Capacidad
+
+Con tres discos de **4 TB** en **RAIDZ1** obtendrás aproximadamente:
+
+* **Capacidad útil:** ≈ **7,2 TiB** (unos **8 TB** comerciales).
+* **Tolerancia a fallos:** **1 disco**.
+
+## Recomendación para tu servidor
+
+Dado que ya tienes:
+
+* **SSD WD 500 GB** → Proxmox VE.
+* **3 × Seagate IronWolf Pro 4 TB** → Pool `datos`.
+
+Te recomiendo utilizar:
+
+* **`local-lvm` (SSD)** para las VMs que necesiten mucho rendimiento (por ejemplo, Windows o bases de datos muy exigentes).
+* **`vmdata` (ZFS RAIDZ1)** para:
+
+  * Máquinas virtuales Linux.
+  * Contenedores LXC.
+  * Docker.
+  * Moodle.
+  * Open WebUI.
+  * Ollama.
+  * Almacenamiento general.
+
+Esta distribución aprovecha el rendimiento del SSD para el sistema y reserva el RAIDZ1 para ofrecer una gran capacidad con protección frente al fallo de un disco.
+
