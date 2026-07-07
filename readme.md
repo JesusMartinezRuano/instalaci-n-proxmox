@@ -1,3 +1,6 @@
+Activar en la BIOS el soporte de 
+
+
 Si quieres que **OpenSSH solo escuche en la IP del servidor**, puedes añadir la directiva `ListenAddress` en `sshd_config`.
 
 Suponiendo que la IP del servidor es `192.168.1.10`, la receta completa sería:
@@ -554,3 +557,246 @@ sha256sum ubuntu-24.04.3-live-server-amd64.iso
 ```
 
 Comparar el resultado con el publicado por el fabricante antes de utilizar la imagen.
+
+# Crear una máquina virtual Ubuntu Server 24.04 LTS en Proxmox VE
+
+## Objetivo
+
+Crear una máquina virtual optimizada para alojar un servidor WordPress sobre Ubuntu Server 24.04 LTS utilizando almacenamiento ZFS en Proxmox VE.
+
+---
+
+# Requisitos
+
+- Proxmox VE 9.x
+- Imagen ISO Ubuntu Server 24.04 LTS descargada
+- Almacenamiento ZFS configurado
+- Acceso como administrador a Proxmox
+
+---
+
+# Paso 1. Crear la máquina virtual
+
+Desde la interfaz web:
+
+```
+Datacenter
+    └── virtualizacion1
+            └── Create VM
+```
+
+---
+
+# Ventana 1. General
+
+## Configuración básica
+
+| Opción | Valor |
+|---------|-------|
+| Node | virtualizacion1 |
+| VM ID | Automático o siguiente disponible |
+| Name | wordpress-01 |
+| Resource Pool | (Vacío) |
+| Add to HA | No |
+
+## Opciones avanzadas
+
+Activar **Advanced**.
+
+| Opción | Valor |
+|---------|-------|
+| Start at boot | Sí |
+| Start/Shutdown order | 1 |
+| Startup delay | 30 |
+| Shutdown timeout | 180 |
+| vCPU Architecture | Default (Host Architecture) |
+| Tags | wordpress, ubuntu (opcional) |
+
+Pulsar **Next**.
+
+---
+
+# Ventana 2. OS
+
+Seleccionar el medio de instalación.
+
+| Opción | Valor |
+|---------|-------|
+| Use CD/DVD disc image file (iso) | Sí |
+| Storage | local |
+| ISO Image | ubuntu-24.04.x-live-server-amd64.iso |
+| Guest OS | Linux |
+| Version | 7.x - 2.6 Kernel |
+
+Pulsar **Next**.
+
+---
+
+# Ventana 3. System
+
+Configurar el hardware virtual.
+
+| Opción | Valor |
+|---------|-------|
+| Graphic Card | Default |
+| Machine | q35 |
+| BIOS | OVMF (UEFI) |
+| Add EFI Disk | Sí |
+| EFI Storage | local-lvm |
+| Pre-Enroll Keys | Sí |
+| SCSI Controller | VirtIO SCSI single |
+| QEMU Agent | Sí |
+| Add TPM | No |
+
+Pulsar **Next**.
+
+---
+
+# Ventana 4. Disks
+
+Crear el disco virtual.
+
+## Configuración principal
+
+| Opción | Valor |
+|---------|-------|
+| Bus/Device | SCSI |
+| SCSI Controller | VirtIO SCSI single |
+| Storage | datos |
+| Disk size | 80 GiB |
+| Format | Raw disk image (raw) |
+| Cache | Default (No cache) |
+| Discard | Sí |
+| IO Thread | Sí |
+
+## Opciones avanzadas
+
+| Opción | Valor |
+|---------|-------|
+| SSD Emulation | Sí |
+| Backup | Sí |
+| Read-only | No |
+| Skip replication | No |
+| Async IO | Default (io_uring) |
+
+Pulsar **Next**.
+
+---
+
+# Ventana 5. CPU
+
+## Configuración principal
+
+| Opción | Valor |
+|---------|-------|
+| Sockets | 1 |
+| Cores | 4 |
+| Type | host |
+
+## Opciones avanzadas
+
+| Opción | Valor |
+|---------|-------|
+| VCPUs | 4 |
+| CPU Units | 100 |
+| CPU Limit | unlimited |
+| CPU Affinity | All Cores |
+| Enable NUMA | No |
+| Extra CPU Flags | Default |
+
+Pulsar **Next**.
+
+---
+
+# Ventana 6. Memory
+
+| Opción | Valor |
+|---------|-------|
+| Memory | 4096 MiB |
+| Minimum Memory | 2048 MiB |
+| Ballooning Device | Sí |
+| Allow KSM | Sí |
+
+Pulsar **Next**.
+
+---
+
+# Ventana 7. Network
+
+| Opción | Valor |
+|---------|-------|
+| No network device | No |
+| Bridge | vmbr0 |
+| Model | VirtIO (paravirtualized) |
+| MAC Address | Auto |
+| VLAN Tag | Sin VLAN |
+| Firewall | No |
+| Disconnect | No |
+| MTU | Same as bridge |
+| Rate limit | Unlimited |
+| Multiqueue | Default |
+
+Pulsar **Next**.
+
+---
+
+# Ventana 8. Confirm
+
+Revisar toda la configuración.
+
+Activar:
+
+```
+Start after created
+```
+
+Pulsar:
+
+```
+Finish
+```
+
+---
+
+# Configuración final
+
+| Recurso | Valor |
+|----------|-------|
+| Sistema operativo | Ubuntu Server 24.04 LTS |
+| Firmware | UEFI (OVMF) |
+| Chipset | q35 |
+| Disco | 80 GiB RAW |
+| Almacenamiento | datos (ZFS) |
+| CPU | 4 vCPU (host) |
+| RAM | 4 GB |
+| Red | VirtIO |
+| QEMU Guest Agent | Activado |
+
+---
+
+# Justificación de la configuración
+
+Esta configuración proporciona:
+
+- Hardware virtual moderno (UEFI + q35).
+- Máximo rendimiento en CPU mediante el tipo **host**.
+- Excelente rendimiento de disco sobre ZFS mediante **RAW**, **VirtIO SCSI**, **Discard**, **IO Thread** e **io_uring**.
+- Compatibilidad con TRIM y snapshots.
+- Arranque automático tras reiniciar el servidor Proxmox.
+- Integración completa con Proxmox mediante **QEMU Guest Agent**.
+- Configuración preparada para formar parte de un futuro clúster Proxmox con un segundo nodo de hardware idéntico.
+
+---
+
+# Siguiente paso
+
+Una vez creada la máquina virtual:
+
+1. Instalar Ubuntu Server 24.04 LTS.
+2. Actualizar el sistema.
+3. Instalar `qemu-guest-agent`.
+4. Configurar el acceso SSH.
+5. Instalar la pila web (LEMP o LAMP).
+6. Instalar WordPress.
+7. Configurar HTTPS mediante Let's Encrypt.
+8. Crear un snapshot inicial de la máquina virtual.
