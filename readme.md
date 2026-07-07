@@ -1,4 +1,4 @@
-Activar en la BIOS el soporte de 
+Activar en la BIOS el soporte de virtualización
 
 
 Si quieres que **OpenSSH solo escuche en la IP del servidor**, puedes añadir la directiva `ListenAddress` en `sshd_config`.
