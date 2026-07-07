@@ -54,13 +54,9 @@ LISTEN 0 128 192.168.1.10:22 0.0.0.0:* users:(("sshd",pid=...,fd=3))
 Aquí tienes las reglas eliminando el prefijo `post-up`, listas para ejecutarlas directamente en la consola:
 
 ```bash
-iptables -t mangle -A PREROUTING -p tcp --dport 443 -j MARK --set-mark 0x1 || true
+iptables -t nat -A PREROUTING -p tcp -d 138.4.83.140 --dport 443 -j REDIRECT --to-ports 8006
 
-iptables -t nat -A PREROUTING -d <your-ip> -p tcp --dport 443 -j REDIRECT --to-port 8006 || true
-
-iptables -I INPUT -p tcp --dport 8006 -m mark --mark 0x1 -j ACCEPT || true
-
-iptables -A INPUT -p tcp --dport 8006 -j DROP || true
+iptables -t nat -A OUTPUT -p tcp -d 138.4.83.140 --dport 443 -j REDIRECT --to-ports 8006
 ```
 
 Si las vas a utilizar en un servidor Proxmox, recuerda sustituir:
