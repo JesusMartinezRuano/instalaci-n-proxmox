@@ -51,33 +51,83 @@ LISTEN 0 128 192.168.1.10:22 0.0.0.0:* users:(("sshd",pid=...,fd=3))
 
 
 
-Aquí tienes las reglas eliminando el prefijo `post-up`, listas para ejecutarlas directamente en la consola:
+Como hemos comprobado durante las pruebas, **no necesitas las reglas con `MARK`**. Basta con una redirección NAT del puerto 443 al 8006.
+
+### 1. Eliminar cualquier regla anterior
 
 ```bash
-iptables -t nat -A PREROUTING -p tcp -d 138.4.83.140 --dport 443 -j REDIRECT --to-ports 8006
-
-iptables -t nat -A OUTPUT -p tcp -d 138.4.83.140 --dport 443 -j REDIRECT --to-ports 8006
+iptables -t nat -F
+iptables -t mangle -F
 ```
 
-Si las vas a utilizar en un servidor Proxmox, recuerda sustituir:
+### 2. Redirección del tráfico entrante (443 → 8006)
+
+```bash
+iptables -t nat -A PREROUTING \
+    -d 138.4.83.140 \
+    -p tcp --dport 443 \
+    -j REDIRECT --to-ports 8006
+```
+
+### 3. Redirección para conexiones originadas en el propio servidor
+
+```bash
+iptables -t nat -A OUTPUT \
+    -d 138.4.83.140 \
+    -p tcp --dport 443 \
+    -j REDIRECT --to-ports 8006
+```
+
+### 4. Comprobar las reglas
+
+```bash
+iptables -t nat -L -n -v
+```
+
+Deberías obtener algo parecido a:
 
 ```text
-<your-ip>
+Chain PREROUTING
+REDIRECT  tcp  --  0.0.0.0/0  138.4.83.140  tcp dpt:443 redir ports 8006
+
+Chain OUTPUT
+REDIRECT  tcp  --  0.0.0.0/0  138.4.83.140  tcp dpt:443 redir ports 8006
 ```
 
-por la dirección IP pública o la IP del puente (`vmbr0`) donde recibe las conexiones HTTPS, por ejemplo:
+### 5. Verificar el funcionamiento
+
+Desde el propio servidor:
 
 ```bash
-iptables -t nat -A PREROUTING -d 192.168.1.10 -p tcp --dport 443 -j REDIRECT --to-port 8006
+curl -vk https://138.4.83.140/
 ```
 
-O:
+Y desde otro equipo:
 
-```bash
-iptables -t nat -A PREROUTING -d 203.0.113.25 -p tcp --dport 443 -j REDIRECT --to-port 8006
+```
+https://138.4.83.140/
 ```
 
-Si lo que pretendes es publicar la interfaz web de Proxmox por el puerto 443, existe una forma más sencilla y robusta utilizando únicamente `DNAT` o configurando un proxy inverso como Nginx o Caddy, evitando el uso de marcas (`MARK`) y reglas adicionales de filtrado.
+---
+
+## Para hacerlas permanentes en Proxmox
+
+Si utilizas `/etc/network/interfaces`, añade únicamente estas dos líneas en la configuración de la interfaz (`vmbr0` normalmente):
+
+```text
+post-up iptables -t nat -A PREROUTING -d 138.4.83.140 -p tcp --dport 443 -j REDIRECT --to-ports 8006
+post-up iptables -t nat -A OUTPUT -d 138.4.83.140 -p tcp --dport 443 -j REDIRECT --to-ports 8006
+```
+
+Y las correspondientes para eliminarlas al bajar la interfaz:
+
+```text
+post-down iptables -t nat -D PREROUTING -d 138.4.83.140 -p tcp --dport 443 -j REDIRECT --to-ports 8006
+post-down iptables -t nat -D OUTPUT -d 138.4.83.140 -p tcp --dport 443 -j REDIRECT --to-ports 8006
+```
+
+Esta es la configuración más sencilla y adecuada para publicar la interfaz web de Proxmox por el puerto **443** sin utilizar reglas de marcado (`MARK`).
+
 
 
 
