@@ -330,25 +330,227 @@ Con tres discos de **4 TB** en **RAIDZ1** obtendrás aproximadamente:
 * **Capacidad útil:** ≈ **7,2 TiB** (unos **8 TB** comerciales).
 * **Tolerancia a fallos:** **1 disco**.
 
-## Recomendación para tu servidor
+# Descargar una imagen ISO en Proxmox VE
 
-Dado que ya tienes:
+Este documento describe las diferentes formas de descargar e instalar imágenes ISO en un servidor **Proxmox VE**, para posteriormente utilizarlas en la creación de máquinas virtuales.
 
-* **SSD WD 500 GB** → Proxmox VE.
-* **3 × Seagate IronWolf Pro 4 TB** → Pool `datos`.
+---
 
-Te recomiendo utilizar:
+# Requisitos
 
-* **`local-lvm` (SSD)** para las VMs que necesiten mucho rendimiento (por ejemplo, Windows o bases de datos muy exigentes).
-* **`vmdata` (ZFS RAIDZ1)** para:
+- Proxmox VE instalado y operativo.
+- Acceso a la interfaz web o a la consola del servidor.
+- Conexión a Internet.
 
-  * Máquinas virtuales Linux.
-  * Contenedores LXC.
-  * Docker.
-  * Moodle.
-  * Open WebUI.
-  * Ollama.
-  * Almacenamiento general.
+---
 
-Esta distribución aprovecha el rendimiento del SSD para el sistema y reserva el RAIDZ1 para ofrecer una gran capacidad con protección frente al fallo de un disco.
+# Método 1. Descargar una ISO desde la interfaz web
 
+1. Acceder a la interfaz web de Proxmox.
+
+2. Seleccionar el nodo.
+
+   ```
+   Datacenter
+     └── <Nodo Proxmox>
+   ```
+
+3. Seleccionar el almacenamiento **local**.
+
+4. Abrir la pestaña:
+
+   ```
+   ISO Images
+   ```
+
+5. Pulsar:
+
+   ```
+   Download from URL
+   ```
+
+6. Introducir la URL oficial de la ISO.
+
+   Ejemplo Ubuntu Server 24.04 LTS:
+
+   ```
+   https://releases.ubuntu.com/24.04/ubuntu-24.04.3-live-server-amd64.iso
+   ```
+
+7. Pulsar **Query URL**.
+
+8. Finalmente pulsar **Download**.
+
+La descarga comenzará automáticamente.
+
+---
+
+# Método 2. Subir una ISO desde el ordenador
+
+1. Seleccionar:
+
+   ```
+   Datacenter
+     └── Nodo
+         └── local
+             └── ISO Images
+   ```
+
+2. Pulsar:
+
+   ```
+   Upload
+   ```
+
+3. Seleccionar el fichero ISO.
+
+4. Esperar a que finalice la carga.
+
+---
+
+# Método 3. Descargar una ISO desde la consola
+
+Acceder por SSH al servidor.
+
+Entrar en el directorio de almacenamiento de ISOs.
+
+```bash
+cd /var/lib/vz/template/iso
+```
+
+Descargar la ISO mediante `wget`.
+
+Ejemplo:
+
+```bash
+wget https://releases.ubuntu.com/24.04/ubuntu-24.04.3-live-server-amd64.iso
+```
+
+También puede utilizarse `curl`:
+
+```bash
+curl -LO https://releases.ubuntu.com/24.04/ubuntu-24.04.3-live-server-amd64.iso
+```
+
+---
+
+# Método 4. Copiar una ISO mediante SCP
+
+Desde otro equipo Linux:
+
+```bash
+scp ubuntu-24.04.3-live-server-amd64.iso \
+root@<IP_PROXMOX>:/var/lib/vz/template/iso/
+```
+
+Ejemplo:
+
+```bash
+scp ubuntu-24.04.3-live-server-amd64.iso \
+root@138.4.83.140:/var/lib/vz/template/iso/
+```
+
+---
+
+# Método 5. Copiar mediante WinSCP
+
+1. Abrir WinSCP.
+
+2. Conectarse al servidor Proxmox mediante SFTP.
+
+3. Navegar hasta:
+
+```
+/var/lib/vz/template/iso/
+```
+
+4. Arrastrar la ISO al directorio.
+
+---
+
+# Comprobar las ISOs instaladas
+
+Desde la consola:
+
+```bash
+ls -lh /var/lib/vz/template/iso/
+```
+
+Ejemplo:
+
+```text
+-rw-r--r-- 1 root root 2.9G ubuntu-24.04.3-live-server-amd64.iso
+-rw-r--r-- 1 root root 1.2G debian-13.0.0-amd64-netinst.iso
+```
+
+---
+
+# Utilizar una ISO al crear una máquina virtual
+
+1. Pulsar **Create VM**.
+
+2. En la pestaña **OS** seleccionar:
+
+```
+Use CD/DVD disc image file (iso)
+```
+
+3. Elegir la ISO descargada.
+
+4. Continuar con el asistente de creación.
+
+---
+
+# Ubicación de las imágenes ISO
+
+Por defecto, Proxmox almacena las ISOs en:
+
+```text
+/var/lib/vz/template/iso/
+```
+
+---
+
+# Repositorios oficiales recomendados
+
+## Ubuntu
+
+https://ubuntu.com/download/server
+
+## Debian
+
+https://www.debian.org/download
+
+## Rocky Linux
+
+https://rockylinux.org/download
+
+## AlmaLinux
+
+https://almalinux.org
+
+## Fedora Server
+
+https://fedoraproject.org/server
+
+## openSUSE
+
+https://get.opensuse.org
+
+## Proxmox VE
+
+https://www.proxmox.com/en/downloads
+
+---
+
+# Verificación de integridad
+
+Se recomienda verificar la suma SHA256 de la imagen descargada.
+
+Ejemplo:
+
+```bash
+sha256sum ubuntu-24.04.3-live-server-amd64.iso
+```
+
+Comparar el resultado con el publicado por el fabricante antes de utilizar la imagen.
